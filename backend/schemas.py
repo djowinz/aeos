@@ -1,4 +1,4 @@
-from typing import List, Optional, Annotated
+from typing import List, Optional, Annotated, Dict, Any
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 
 
@@ -41,4 +41,38 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    username: Optional[str] = Field(None, description="Username extracted from token") 
+    username: Optional[str] = Field(None, description="Username extracted from token")
+
+
+# Auth0 specific schemas
+class Auth0User(BaseModel):
+    sub: str = Field(..., description="Auth0 subject identifier")
+    email: Optional[str] = Field(None, description="User email address")
+    name: Optional[str] = Field(None, description="User full name")
+    picture: Optional[str] = Field(None, description="URL to user profile picture")
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Auth0Token(BaseModel):
+    access_token: str = Field(..., description="Auth0 access token")
+    id_token: str = Field(..., description="Auth0 ID token")
+    token_type: str = Field(..., description="Token type")
+    expires_in: int = Field(..., description="Token expiration time in seconds")
+    
+    
+class LoginRequest(BaseModel):
+    username: str = Field(..., description="Username or email for login")
+    password: str = Field(..., description="Password for login")
+
+
+class SignupRequest(BaseModel):
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., min_length=8, description="User password (min 8 characters)")
+    company: str = Field(..., description="User's company")
+    name: Optional[str] = Field(None, description="User's full name")
+    
+    
+class Auth0Error(BaseModel):
+    error: str = Field(..., description="Error type")
+    error_description: str = Field(..., description="Error description") 

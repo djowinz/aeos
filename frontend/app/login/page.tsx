@@ -2,7 +2,8 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Shield, ArrowLeft, Loader2, Eye, EyeOff, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,7 @@ import { SocialLogin } from "@/components/social-login"
 import ReCAPTCHA from "react-google-recaptcha"
 
 export default function LoginPage() {
+  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [formState, setFormState] = useState({
     email: "",
@@ -24,6 +26,29 @@ export default function LoginPage() {
   const [loginError, setLoginError] = useState("")
   const [needsVerification, setNeedsVerification] = useState(false)
   const recaptchaRef = useRef<ReCAPTCHA>(null)
+
+  // Check for existing session on component mount
+  useEffect(() => {
+    // This is a backup check in case middleware redirect fails
+    const checkSession = async () => {
+      try {
+        const response = await fetch('/api/check-auth', { 
+          method: 'GET',
+          credentials: 'include' // Include cookies in the request
+        });
+        
+        if (response.ok) {
+          // If authenticated, redirect to dashboard
+          router.replace('/dashboard');
+        }
+      } catch (error) {
+        // If error, stay on login page (user is likely not authenticated)
+        console.error('Auth check failed:', error);
+      }
+    };
+    
+    checkSession();
+  }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -64,36 +89,39 @@ export default function LoginPage() {
     setNeedsVerification(false)
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: formState.email, 
+          password: formState.password,
+          rememberMe: formState.rememberMe 
+        }),
+      });
 
-      // In a real app, you would handle authentication here
-      console.log("Login attempt:", formState)
+      const data = await response.json();
 
-      // Use the rememberMe value to set a longer session expiration
-      const sessionDuration = formState.rememberMe ? "30 days" : "24 hours"
-      console.log(`Setting session duration to: ${sessionDuration}`)
-
-      // Simulate different login scenarios for demonstration
-      const randomScenario = Math.random()
-
-      if (randomScenario > 0.7) {
-        throw new Error("Invalid email or password")
-      } else if (randomScenario > 0.4) {
-        // Simulate unverified email scenario
-        setNeedsVerification(true)
-        return
+      if (response.ok) {
+        // Get the redirect URL from query parameters or default to dashboard
+        const params = new URLSearchParams(window.location.search);
+        const redirectPath = params.get('redirect') || '/dashboard';
+        window.location.href = decodeURIComponent(redirectPath);
+      } else {
+        setLoginError(data.error || "An error occurred during login");
+        
+        // Check if the error is due to unverified email
+        if (data.error?.includes('verification')) {
+          setNeedsVerification(true);
+        }
       }
-
-      // Successful login would redirect to dashboard
-      window.location.href = "/dashboard"
     } catch (error) {
-      setLoginError(error instanceof Error ? error.message : "An error occurred during login")
+      setLoginError("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
+      
       // Reset reCAPTCHA on failed login attempt
       recaptchaRef.current?.reset()
       setCaptchaVerified(false)
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -198,7 +226,7 @@ export default function LoginPage() {
 
               {/* Social Login Section */}
               <div className="mb-6">
-                <SocialLogin onSuccess={handleSocialLoginSuccess} onError={handleSocialLoginError} />
+                <SocialLogin />
               </div>
 
               {/* Divider */}

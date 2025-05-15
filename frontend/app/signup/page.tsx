@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { Shield, ArrowLeft, Check, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,8 +11,10 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SocialLogin } from "@/components/social-login"
 import zxcvbn from "zxcvbn"
+import { useRouter } from "next/navigation"
 
 export default function SignUpPage() {
+  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
@@ -85,6 +87,29 @@ export default function SignUpPage() {
       })
     }
   }, [formState.password])
+
+  // Check for existing session on component mount
+  useEffect(() => {
+    // This is a backup check in case middleware redirect fails
+    const checkSession = async () => {
+      try {
+        const response = await fetch('/api/check-auth', { 
+          method: 'GET',
+          credentials: 'include' // Include cookies in the request
+        });
+        
+        if (response.ok) {
+          // If authenticated, redirect to dashboard
+          router.replace('/dashboard');
+        }
+      } catch (error) {
+        // If error, stay on signup page (user is likely not authenticated)
+        console.error('Auth check failed:', error);
+      }
+    };
+    
+    checkSession();
+  }, [router]);
 
   const togglePasswordVisibility = () => {
     setShowPassword((prev) => !prev)
@@ -292,7 +317,7 @@ export default function SignUpPage() {
 
               {/* Social Login Section */}
               <div className="mb-6">
-                <SocialLogin onSuccess={handleSocialLoginSuccess} onError={handleSocialLoginError} />
+                <SocialLogin />
               </div>
 
               {/* Divider */}

@@ -2,9 +2,10 @@ from fastapi import FastAPI, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from starlette.middleware.sessions import SessionMiddleware
 
-from routers import items, users, auth
-from auth import get_current_user
+from routers import items, users, auth0_login
+from auth0 import get_current_user_from_auth0
 from config import settings
 from typing import Annotated
 from errors import ErrorResponse
@@ -22,6 +23,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Add session middleware for Auth0
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SECRET_KEY,
+    max_age=1800,  # 30 minutes session lifetime
 )
 
 # Exception handlers
@@ -47,19 +55,19 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         ).model_dump(),
     )
 
-# Include routers
-app.include_router(items.router)
-app.include_router(users.router)
-app.include_router(auth.router)
+# Include routers with API prefix
+app.include_router(items.router, prefix=settings.API_PREFIX)
+app.include_router(users.router, prefix=settings.API_PREFIX)
+app.include_router(auth0_login.router, prefix=settings.API_PREFIX)
 
 @app.get("/")
 async def root():
     return {"message": "Welcome to the FastAPI template API"}
 
-@app.get("/protected")
-async def protected_route(current_user: Annotated[dict, Depends(get_current_user)]):
-    return {"message": "This is a protected route", "user": current_user}
+@app.get(f"{settings.API_PREFIX}/auth0-protected")
+async def auth0_protected_route(current_user: Annotated[dict, Depends(get_current_user_from_auth0)]):
+    return {"message": "This is a protected route using Auth0", "user": current_user}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
+    uvicorn.run("main:app", host="0.0.0.0", port=9000, reload=True) 
